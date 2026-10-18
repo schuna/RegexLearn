@@ -59,8 +59,9 @@ export default function App() {
   const [replacement, setReplacement] = useState(firstLesson.initialReplacement || '');
   const [activeWorkbenchTab, setActiveWorkbenchTab] = useState('matches');
 
-  // 치트시트 모달 상태
+  // 치트시트 모달 상태 및 트레이서 활성 토큰 연동 상태
   const [isCheatsheetOpen, setIsCheatsheetOpen] = useState(false);
+  const [tracerTokenId, setTracerTokenId] = useState(null);
 
   // 학습 완료 진도 (localStorage 연동)
   const [completedIds, setCompletedIds] = useState(() => {
@@ -343,7 +344,11 @@ export default function App() {
             } flex flex-col gap-4`}
           >
             {/* 1. 시각적 패턴 분석기 (토큰 컬러링 + 블록 흐름도 + 한국어 해설 트리 + 백트래킹 진단) */}
-            <VisualPatternAnalyzer pattern={pattern} flags={flags} />
+            <VisualPatternAnalyzer
+              pattern={pattern}
+              flags={flags}
+              externalActiveTokenId={tracerTokenId}
+            />
 
             {/* 2. 실시간 플레이그라운드 & 결과 워크벤치 */}
             <PlaygroundPanel
@@ -359,6 +364,7 @@ export default function App() {
               onSaveBookmark={handleQuickSaveBookmark}
               activeWorkbenchTab={activeWorkbenchTab}
               setActiveWorkbenchTab={setActiveWorkbenchTab}
+              onActiveTokenChange={setTracerTokenId}
             />
           </div>
         </div>

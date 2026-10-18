@@ -208,9 +208,10 @@ function ExplanationTreeItem({ node, depth = 0, activeTokenId, onHoverToken }) {
   );
 }
 
-export default function VisualPatternAnalyzer({ pattern, flags }) {
+export default function VisualPatternAnalyzer({ pattern, flags, externalActiveTokenId = null }) {
   const [activeTab, setActiveTab] = useState('railroad'); // 'railroad' | 'tree'
-  const [activeTokenId, setActiveTokenId] = useState(null);
+  const [hoveredTokenId, setHoveredTokenId] = useState(null);
+  const activeTokenId = hoveredTokenId || externalActiveTokenId;
 
   const { tokens, ast } = useMemo(
     () => parsePythonRegexAST(pattern, Boolean(flags?.x)),
@@ -313,9 +314,9 @@ export default function VisualPatternAnalyzer({ pattern, flags }) {
                 <button
                   key={tok.id}
                   type="button"
-                  onMouseEnter={() => setActiveTokenId(tok.id)}
-                  onMouseLeave={() => setActiveTokenId(null)}
-                  onClick={() => setActiveTokenId(tok.id === activeTokenId ? null : tok.id)}
+                  onMouseEnter={() => setHoveredTokenId(tok.id)}
+                  onMouseLeave={() => setHoveredTokenId(null)}
+                  onClick={() => setHoveredTokenId(tok.id === activeTokenId ? null : tok.id)}
                   className={`font-mono text-xs px-2 py-0.5 rounded border transition-all ${cat.badgeClass} ${
                     isSelected ? 'ring-2 ring-amber-400 scale-110 z-10' : 'hover:opacity-90'
                   }`}
@@ -398,7 +399,7 @@ export default function VisualPatternAnalyzer({ pattern, flags }) {
                         <RailroadNode
                           node={node}
                           activeTokenId={activeTokenId}
-                          onHoverToken={setActiveTokenId}
+                          onHoverToken={setHoveredTokenId}
                         />
                       </React.Fragment>
                     ))
@@ -429,7 +430,7 @@ export default function VisualPatternAnalyzer({ pattern, flags }) {
                     node={node}
                     depth={0}
                     activeTokenId={activeTokenId}
-                    onHoverToken={setActiveTokenId}
+                    onHoverToken={setHoveredTokenId}
                   />
                 ))}
               </div>

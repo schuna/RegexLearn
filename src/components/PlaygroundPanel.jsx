@@ -9,9 +9,12 @@ import {
   Table2,
   AlertCircle,
   Clock,
-  Sparkles
+  Sparkles,
+  Activity,
+  Edit3
 } from 'lucide-react';
 import { generatePythonCode } from '../engine/pythonRegexEngine';
+import StepByStepTracer from './StepByStepTracer';
 
 const GROUP_COLORS = [
   'bg-indigo-500/30 border-indigo-400 text-indigo-100',
@@ -60,8 +63,10 @@ export default function PlaygroundPanel({
   execResult,
   onSaveBookmark,
   activeWorkbenchTab,
-  setActiveWorkbenchTab
+  setActiveWorkbenchTab,
+  onActiveTokenChange
 }) {
+  const [viewMode, setViewMode] = useState('edit'); // 'edit' | 'trace'
   const [codeMode, setCodeMode] = useState('finditer');
   const [copiedCode, setCopiedCode] = useState(false);
   const [copiedPattern, setCopiedPattern] = useState(false);
@@ -250,98 +255,138 @@ export default function PlaygroundPanel({
             </div>
           )}
 
-          <div className="flex items-center gap-1 text-slate-400 font-mono text-[11px]">
-            <Clock className="w-3.5 h-3.5" />
-            <span>{execResult.execTimeMs} ms</span>
+          <div className="flex items-center gap-2">
+            {/* Edit Mode vs Trace Mode 스위칭 버튼 (뷰포트 밀도 제어) */}
+            <div className="flex bg-slate-950 p-0.5 rounded-lg border border-slate-800">
+              <button
+                type="button"
+                onClick={() => {
+                  setViewMode('edit');
+                  if (onActiveTokenChange) onActiveTokenChange(null);
+                }}
+                className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-bold transition-colors ${
+                  viewMode === 'edit'
+                    ? 'bg-indigo-600 text-white'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <Edit3 className="w-3.5 h-3.5" /> 실시간 작성/결과 모드
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode('trace')}
+                className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-bold transition-colors ${
+                  viewMode === 'trace'
+                    ? 'bg-amber-500 text-slate-950'
+                    : 'text-amber-300/80 hover:text-amber-200'
+                }`}
+              >
+                <Activity className="w-3.5 h-3.5" /> Step-by-Step 트레이서
+              </button>
+            </div>
+
+            <div className="flex items-center gap-1 text-slate-400 font-mono text-[11px]">
+              <Clock className="w-3.5 h-3.5" />
+              <span>{execResult.execTimeMs} ms</span>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* 2. 테스트 대상 문자열 에디터 & 실시간 매칭 하이라이터 (2단 분할) */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* 좌: 원본 테스트 문자열 입력 */}
-        <div className="bg-slate-900/90 border border-slate-800 rounded-xl p-3.5 flex flex-col">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-bold text-slate-200">
-              📝 테스트 대상 문자열 (편집 가능)
-            </span>
-            <span className="text-[11px] text-slate-400 font-mono">
-              길이: {(testText || '').length}자
-            </span>
-          </div>
-          <textarea
-            value={testText}
-            onChange={(e) => setTestText(e.target.value)}
-            rows={6}
-            placeholder="여기에 테스트할 로그, 텍스트, 데이터를 입력하거나 붙여넣으세요..."
-            className="w-full flex-1 bg-slate-950 border border-slate-800 focus:border-indigo-500/70 rounded-lg p-3 font-mono text-xs text-slate-200 leading-relaxed focus:outline-none resize-y"
-            spellCheck={false}
-          />
-        </div>
-
-        {/* 우: 실시간 매칭 & 그룹 하이라이트 프리뷰 */}
-        <div className="bg-slate-900/90 border border-slate-800 rounded-xl p-3.5 flex flex-col">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
-              <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
-              실시간 매칭 하이라이트 뷰어
-            </span>
-            <span className="text-[11px] text-slate-400">
-              매칭 영역에 마우스를 올리면 상세 그룹이 표시됩니다
-            </span>
+      {/* 2. 모드별 뷰어: Step-by-Step 트레이서 모드 vs 실시간 작성/매칭 하이라이터 모드 */}
+      {viewMode === 'trace' ? (
+        <StepByStepTracer
+          pattern={pattern}
+          testText={testText}
+          flags={flags}
+          onActiveTokenChange={onActiveTokenChange}
+        />
+      ) : (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          {/* 좌: 원본 테스트 문자열 입력 */}
+          <div className="bg-slate-900/90 border border-slate-800 rounded-xl p-3.5 flex flex-col">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-bold text-slate-200">
+                📝 테스트 대상 문자열 (편집 가능)
+              </span>
+              <span className="text-[11px] text-slate-400 font-mono">
+                길이: {(testText || '').length}자
+              </span>
+            </div>
+            <textarea
+              value={testText}
+              onChange={(e) => setTestText(e.target.value)}
+              rows={6}
+              placeholder="여기에 테스트할 로그, 텍스트, 데이터를 입력하거나 붙여넣으세요..."
+              className="w-full flex-1 bg-slate-950 border border-slate-800 focus:border-indigo-500/70 rounded-lg p-3 font-mono text-xs text-slate-200 leading-relaxed focus:outline-none resize-y"
+              spellCheck={false}
+            />
           </div>
 
-          <div className="w-full flex-1 min-h-[140px] max-h-[220px] overflow-y-auto bg-slate-950 border border-slate-800 rounded-lg p-3 font-mono text-xs leading-relaxed whitespace-pre-wrap break-all">
-            {highlightedTextChunks.map((chunk, idx) => {
-              if (chunk.type === 'plain') {
+          {/* 우: 실시간 매칭 & 그룹 하이라이트 프리뷰 */}
+          <div className="bg-slate-900/90 border border-slate-800 rounded-xl p-3.5 flex flex-col">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
+                <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
+                실시간 매칭 하이라이트 뷰어
+              </span>
+              <span className="text-[11px] text-slate-400">
+                매칭 영역에 마우스를 올리면 상세 그룹이 표시됩니다
+              </span>
+            </div>
+
+            <div className="w-full flex-1 min-h-[140px] max-h-[220px] overflow-y-auto bg-slate-950 border border-slate-800 rounded-lg p-3 font-mono text-xs leading-relaxed whitespace-pre-wrap break-all">
+              {highlightedTextChunks.map((chunk, idx) => {
+                if (chunk.type === 'plain') {
+                  return (
+                    <span key={idx} className="text-slate-400">
+                      {chunk.text}
+                    </span>
+                  );
+                }
+                const m = chunk.matchObj;
+                const isHovered = hoveredMatchIdx === m.matchIndex;
+                const colorClass = GROUP_COLORS[chunk.colorIdx];
                 return (
-                  <span key={idx} className="text-slate-400">
-                    {chunk.text}
+                  <span
+                    key={idx}
+                    onMouseEnter={() => setHoveredMatchIdx(m.matchIndex)}
+                    onMouseLeave={() => setHoveredMatchIdx(null)}
+                    className={`relative inline rounded px-1 py-0.5 mx-0.5 border font-semibold cursor-pointer transition-transform ${colorClass} ${
+                      isHovered ? 'ring-2 ring-white scale-105 z-10' : ''
+                    }`}
+                    title={`Match #${m.matchIndex + 1} | span(${m.start}, ${m.end})`}
+                  >
+                    {chunk.text.length === 0 ? '∅' : chunk.text}
+                    <sup className="ml-0.5 text-[9px] opacity-80 font-bold">#{m.matchIndex + 1}</sup>
                   </span>
                 );
-              }
-              const m = chunk.matchObj;
-              const isHovered = hoveredMatchIdx === m.matchIndex;
-              const colorClass = GROUP_COLORS[chunk.colorIdx];
-              return (
-                <span
-                  key={idx}
-                  onMouseEnter={() => setHoveredMatchIdx(m.matchIndex)}
-                  onMouseLeave={() => setHoveredMatchIdx(null)}
-                  className={`relative inline rounded px-1 py-0.5 mx-0.5 border font-semibold cursor-pointer transition-transform ${colorClass} ${
-                    isHovered ? 'ring-2 ring-white scale-105 z-10' : ''
-                  }`}
-                  title={`Match #${m.matchIndex + 1} | span(${m.start}, ${m.end})`}
-                >
-                  {chunk.text.length === 0 ? '∅' : chunk.text}
-                  <sup className="ml-0.5 text-[9px] opacity-80 font-bold">#{m.matchIndex + 1}</sup>
-                </span>
-              );
-            })}
-          </div>
-
-          {/* 호버된 매칭 빠른 요약 바 */}
-          {hoveredMatchIdx !== null && execResult.matches[hoveredMatchIdx] && (
-            <div className="mt-2 px-3 py-1.5 rounded-lg bg-slate-950 border border-indigo-500/40 text-[11px] flex items-center gap-3 flex-wrap">
-              <span className="font-bold text-indigo-300">
-                Match #{hoveredMatchIdx + 1} span({execResult.matches[hoveredMatchIdx].start},{' '}
-                {execResult.matches[hoveredMatchIdx].end})
-              </span>
-              <span className="text-slate-300 font-mono">
-                group(0): &quot;{execResult.matches[hoveredMatchIdx].fullMatch}&quot;
-              </span>
-              {execResult.matches[hoveredMatchIdx].groups.map((g) => (
-                <span
-                  key={g.index}
-                  className="px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-200 font-mono"
-                >
-                  {g.name ? `${g.name} (#${g.index})` : `#${g.index}`}: &quot;{g.value ?? 'None'}&quot;
-                </span>
-              ))}
+              })}
             </div>
-          )}
+
+            {/* 호버된 매칭 빠른 요약 바 */}
+            {hoveredMatchIdx !== null && execResult.matches[hoveredMatchIdx] && (
+              <div className="mt-2 px-3 py-1.5 rounded-lg bg-slate-950 border border-indigo-500/40 text-[11px] flex items-center gap-3 flex-wrap">
+                <span className="font-bold text-indigo-300">
+                  Match #{hoveredMatchIdx + 1} span({execResult.matches[hoveredMatchIdx].start},{' '}
+                  {execResult.matches[hoveredMatchIdx].end})
+                </span>
+                <span className="text-slate-300 font-mono">
+                  group(0): &quot;{execResult.matches[hoveredMatchIdx].fullMatch}&quot;
+                </span>
+                {execResult.matches[hoveredMatchIdx].groups.map((g) => (
+                  <span
+                    key={g.index}
+                    className="px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-200 font-mono"
+                  >
+                    {g.name ? `${g.name} (#${g.index})` : `#${g.index}`}: &quot;{g.value ?? 'None'}&quot;
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* 3. 하단 워크벤치 탭: ① 매칭/그룹 상세 테이블 | ② re.sub 치환 시뮬레이터 | ③ Python 코드 생성기 */}
       <div className="bg-slate-900/90 border border-slate-800 rounded-xl overflow-hidden shadow-lg">
