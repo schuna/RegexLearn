@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { generatePythonCode } from '../engine/pythonRegexEngine';
 import StepByStepTracer from './StepByStepTracer';
+import GoalDiffViewer from './GoalDiffViewer';
 
 const GROUP_COLORS = [
   'bg-indigo-500/30 border-indigo-400 text-indigo-100',
@@ -64,9 +65,11 @@ export default function PlaygroundPanel({
   onSaveBookmark,
   activeWorkbenchTab,
   setActiveWorkbenchTab,
-  onActiveTokenChange
+  onActiveTokenChange,
+  activeLesson = null
 }) {
   const [viewMode, setViewMode] = useState('edit'); // 'edit' | 'trace'
+  const [highlightMode, setHighlightMode] = useState('goal'); // 'goal' | 'groups'
   const [codeMode, setCodeMode] = useState('finditer');
   const [copiedCode, setCopiedCode] = useState(false);
   const [copiedPattern, setCopiedPattern] = useState(false);
@@ -323,66 +326,109 @@ export default function PlaygroundPanel({
             />
           </div>
 
-          {/* 우: 실시간 매칭 & 그룹 하이라이트 프리뷰 */}
+          {/* 우: 실시간 매칭 & 시각적 목표(Goal) Diff 하이라이트 프리뷰 */}
           <div className="bg-slate-900/90 border border-slate-800 rounded-xl p-3.5 flex flex-col">
-            <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center justify-between mb-2 flex-wrap gap-1.5">
               <span className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
                 <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
-                실시간 매칭 하이라이트 뷰어
+                {activeLesson && highlightMode === 'goal'
+                  ? '시각적 목표(Goal) Diff 대조 뷰어'
+                  : '실시간 매칭 하이라이트 뷰어'}
               </span>
-              <span className="text-[11px] text-slate-400">
-                매칭 영역에 마우스를 올리면 상세 그룹이 표시됩니다
-              </span>
-            </div>
 
-            <div className="w-full flex-1 min-h-[140px] max-h-[220px] overflow-y-auto bg-slate-950 border border-slate-800 rounded-lg p-3 font-mono text-xs leading-relaxed whitespace-pre-wrap break-all">
-              {highlightedTextChunks.map((chunk, idx) => {
-                if (chunk.type === 'plain') {
-                  return (
-                    <span key={idx} className="text-slate-400">
-                      {chunk.text}
-                    </span>
-                  );
-                }
-                const m = chunk.matchObj;
-                const isHovered = hoveredMatchIdx === m.matchIndex;
-                const colorClass = GROUP_COLORS[chunk.colorIdx];
-                return (
-                  <span
-                    key={idx}
-                    onMouseEnter={() => setHoveredMatchIdx(m.matchIndex)}
-                    onMouseLeave={() => setHoveredMatchIdx(null)}
-                    className={`relative inline rounded px-1 py-0.5 mx-0.5 border font-semibold cursor-pointer transition-transform ${colorClass} ${
-                      isHovered ? 'ring-2 ring-white scale-105 z-10' : ''
+              {activeLesson ? (
+                <div className="flex bg-slate-950 p-0.5 rounded-lg border border-slate-800">
+                  <button
+                    type="button"
+                    onClick={() => setHighlightMode('goal')}
+                    className={`px-2 py-0.5 rounded text-[11px] font-bold transition-colors ${
+                      highlightMode === 'goal'
+                        ? 'bg-emerald-600 text-white'
+                        : 'text-slate-400 hover:text-slate-200'
                     }`}
-                    title={`Match #${m.matchIndex + 1} | span(${m.start}, ${m.end})`}
                   >
-                    {chunk.text.length === 0 ? '∅' : chunk.text}
-                    <sup className="ml-0.5 text-[9px] opacity-80 font-bold">#{m.matchIndex + 1}</sup>
-                  </span>
-                );
-              })}
+                    🎯 목표(Goal) 비교
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setHighlightMode('groups')}
+                    className={`px-2 py-0.5 rounded text-[11px] font-bold transition-colors ${
+                      highlightMode === 'groups'
+                        ? 'bg-indigo-600 text-white'
+                        : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    ✨ 그룹 상세 뷰
+                  </button>
+                </div>
+              ) : (
+                <span className="text-[11px] text-slate-400">
+                  매칭 영역에 마우스를 올리면 상세 그룹이 표시됩니다
+                </span>
+              )}
             </div>
 
-            {/* 호버된 매칭 빠른 요약 바 */}
-            {hoveredMatchIdx !== null && execResult.matches[hoveredMatchIdx] && (
-              <div className="mt-2 px-3 py-1.5 rounded-lg bg-slate-950 border border-indigo-500/40 text-[11px] flex items-center gap-3 flex-wrap">
-                <span className="font-bold text-indigo-300">
-                  Match #{hoveredMatchIdx + 1} span({execResult.matches[hoveredMatchIdx].start},{' '}
-                  {execResult.matches[hoveredMatchIdx].end})
-                </span>
-                <span className="text-slate-300 font-mono">
-                  group(0): &quot;{execResult.matches[hoveredMatchIdx].fullMatch}&quot;
-                </span>
-                {execResult.matches[hoveredMatchIdx].groups.map((g) => (
-                  <span
-                    key={g.index}
-                    className="px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-200 font-mono"
-                  >
-                    {g.name ? `${g.name} (#${g.index})` : `#${g.index}`}: &quot;{g.value ?? 'None'}&quot;
-                  </span>
-                ))}
-              </div>
+            {activeLesson && highlightMode === 'goal' ? (
+              <GoalDiffViewer
+                lesson={activeLesson}
+                testText={testText}
+                userExecResult={execResult}
+              />
+            ) : (
+              <>
+                <div className="w-full flex-1 min-h-[140px] max-h-[220px] overflow-y-auto bg-slate-950 border border-slate-800 rounded-lg p-3 font-mono text-xs leading-relaxed whitespace-pre-wrap break-all">
+                  {highlightedTextChunks.map((chunk, idx) => {
+                    if (chunk.type === 'plain') {
+                      return (
+                        <span key={idx} className="text-slate-400">
+                          {chunk.text}
+                        </span>
+                      );
+                    }
+                    const m = chunk.matchObj;
+                    const isHovered = hoveredMatchIdx === m.matchIndex;
+                    const colorClass = GROUP_COLORS[chunk.colorIdx];
+                    return (
+                      <span
+                        key={idx}
+                        onMouseEnter={() => setHoveredMatchIdx(m.matchIndex)}
+                        onMouseLeave={() => setHoveredMatchIdx(null)}
+                        className={`relative inline rounded px-1 py-0.5 mx-0.5 border font-semibold cursor-pointer transition-transform ${colorClass} ${
+                          isHovered ? 'ring-2 ring-white scale-105 z-10' : ''
+                        }`}
+                        title={`Match #${m.matchIndex + 1} | span(${m.start}, ${m.end})`}
+                      >
+                        {chunk.text.length === 0 ? '∅' : chunk.text}
+                        <sup className="ml-0.5 text-[9px] opacity-80 font-bold">
+                          #{m.matchIndex + 1}
+                        </sup>
+                      </span>
+                    );
+                  })}
+                </div>
+
+                {/* 호버된 매칭 빠른 요약 바 */}
+                {hoveredMatchIdx !== null && execResult.matches[hoveredMatchIdx] && (
+                  <div className="mt-2 px-3 py-1.5 rounded-lg bg-slate-950 border border-indigo-500/40 text-[11px] flex items-center gap-3 flex-wrap">
+                    <span className="font-bold text-indigo-300">
+                      Match #{hoveredMatchIdx + 1} span({execResult.matches[hoveredMatchIdx].start},{' '}
+                      {execResult.matches[hoveredMatchIdx].end})
+                    </span>
+                    <span className="text-slate-300 font-mono">
+                      group(0): &quot;{execResult.matches[hoveredMatchIdx].fullMatch}&quot;
+                    </span>
+                    {execResult.matches[hoveredMatchIdx].groups.map((g) => (
+                      <span
+                        key={g.index}
+                        className="px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-200 font-mono"
+                      >
+                        {g.name ? `${g.name} (#${g.index})` : `#${g.index}`}: &quot;
+                        {g.value ?? 'None'}&quot;
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </>
             )}
           </div>
         </div>

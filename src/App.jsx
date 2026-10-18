@@ -365,6 +365,7 @@ export default function App() {
               activeWorkbenchTab={activeWorkbenchTab}
               setActiveWorkbenchTab={setActiveWorkbenchTab}
               onActiveTokenChange={setTracerTokenId}
+              activeLesson={activeMode === 'learn' ? currentLesson : null}
             />
           </div>
         </div>

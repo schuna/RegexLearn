@@ -11,6 +11,7 @@ import {
   RotateCcw
 } from 'lucide-react';
 import { CURRICULUM_LEVELS } from '../data/curriculumData';
+import ConceptDemoWidget from './ConceptDemoWidget';
 
 /**
  * 현재 실행 결과(execResult)가 레슨의 미션 조건을 통과했는지 자동 채점합니다.
@@ -242,6 +243,9 @@ export default function CurriculumSidebar({
             <div className="text-xs text-slate-300 leading-relaxed whitespace-pre-line bg-slate-950/70 border border-slate-800/90 rounded-xl p-3.5">
               {currentLesson.concept}
             </div>
+
+            {/* 인터랙티브 개념 시연 위젯 (Before / After 애니메이션 비교) */}
+            <ConceptDemoWidget lesson={currentLesson} />
 
             {/* 실습 미션 박스 */}
             <div className="rounded-xl border-2 border-indigo-500/40 bg-indigo-950/20 p-3.5 space-y-2.5">
