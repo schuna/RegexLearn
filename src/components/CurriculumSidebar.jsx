@@ -8,10 +8,20 @@ import {
   Award,
   Target,
   XCircle,
-  RotateCcw
+  RotateCcw,
+  Star,
+  Map,
+  Copy,
+  Check
 } from 'lucide-react';
 import { CURRICULUM_LEVELS } from '../data/curriculumData';
 import ConceptDemoWidget from './ConceptDemoWidget';
+import {
+  stripVerboseRegex,
+  analyzeBacktrackingRisk,
+  generatePythonCode
+} from '../engine/pythonRegexEngine';
+import { tracePythonRegexSteps } from '../engine/regexStepTracer';
 
 /**
  * 현재 실행 결과(execResult)가 레슨의 미션 조건을 통과했는지 자동 채점합니다.
@@ -122,17 +132,25 @@ export default function CurriculumSidebar({
   onSelectLesson,
   completedIds,
   onMarkCompleted,
+  starredIds = [],
+  onMarkStarred,
+  onOpenStageMap,
+  pattern,
+  flags,
+  replacement,
   execResult,
   onApplySolution,
   onResetLesson
 }) {
   const [hintStep, setHintStep] = useState(0);
   const [showSolutionNote, setShowSolutionNote] = useState(false);
+  const [copiedClearCode, setCopiedClearCode] = useState(false);
 
   // 레슨 변경 시 힌트/정답 표시 초기화
   useEffect(() => {
     setHintStep(0);
     setShowSolutionNote(false);
+    setCopiedClearCode(false);
   }, [currentLesson?.id]);
 
   const evaluation = useMemo(
@@ -140,12 +158,66 @@ export default function CurriculumSidebar({
     [currentLesson, execResult]
   );
 
-  // 미션 통과 시 자동 완료 기록
+  // 정량적 마스터 별점(★) 판정:
+  // 1) 미션 통과 + 2) 유효 패턴 길이가 권장 Par 이내 + 3) 탐색 스텝 수가 권장 Max Steps 이내 + 4) 백트래킹 경고 없음
+  const starMetrics = useMemo(() => {
+    if (!currentLesson) {
+      return { earnedStar: false, effectiveLen: 0, parLen: 0, totalSteps: 0, maxStepsPar: 100 };
+    }
+    const solRaw = flags?.x
+      ? stripVerboseRegex(currentLesson.solution || '')
+      : currentLesson.solution || '';
+    const parLen = solRaw.length + 2;
+    const effectivePat = flags?.x ? stripVerboseRegex(pattern || '') : pattern || '';
+    const effectiveLen = effectivePat.length;
+
+    const maxStepsPar = Math.max(80, (currentLesson.sampleText || '').length * 4);
+    const trace = tracePythonRegexSteps(
+      pattern || '',
+      currentLesson.sampleText || '',
+      flags,
+      maxStepsPar + 20
+    );
+    const risk = analyzeBacktrackingRisk(pattern || '');
+
+    const earnedStar =
+      evaluation.passed &&
+      effectiveLen > 0 &&
+      effectiveLen <= parLen &&
+      trace.totalSteps <= maxStepsPar &&
+      risk.level === 'safe';
+
+    return {
+      earnedStar,
+      effectiveLen,
+      parLen,
+      totalSteps: trace.totalSteps,
+      maxStepsPar
+    };
+  }, [currentLesson, evaluation.passed, pattern, flags]);
+
+  // 미션 통과 및 별점 획득 시 자동 기록
   useEffect(() => {
     if (evaluation.passed && currentLesson?.id && !completedIds.includes(currentLesson.id)) {
       onMarkCompleted(currentLesson.id);
     }
-  }, [evaluation.passed, currentLesson, completedIds, onMarkCompleted]);
+    if (
+      starMetrics.earnedStar &&
+      currentLesson?.id &&
+      onMarkStarred &&
+      !starredIds.includes(currentLesson.id)
+    ) {
+      onMarkStarred(currentLesson.id);
+    }
+  }, [
+    evaluation.passed,
+    starMetrics.earnedStar,
+    currentLesson,
+    completedIds,
+    starredIds,
+    onMarkCompleted,
+    onMarkStarred
+  ]);
 
   // 전체 레슨 평탄화 목록 (다음 강의 이동용)
   const allLessons = useMemo(
@@ -158,18 +230,46 @@ export default function CurriculumSidebar({
     return idx >= 0 && idx + 1 < allLessons.length ? allLessons[idx + 1] : null;
   }, [allLessons, currentLesson]);
 
+  const handleCopySuccessPython = () => {
+    if (!currentLesson) return;
+    const mode = currentLesson.validation?.type === 'sub' ? 'sub' : 'finditer';
+    const snippet = generatePythonCode(
+      pattern,
+      currentLesson.sampleText,
+      flags,
+      replacement,
+      mode
+    );
+    navigator.clipboard.writeText(snippet);
+    setCopiedClearCode(true);
+    setTimeout(() => setCopiedClearCode(false), 1800);
+  };
+
   return (
     <div className="flex flex-col gap-4 h-full">
       {/* 1. 레벨 & 강의 선택 네비게이터 */}
       <div className="bg-slate-900/90 border border-slate-800 rounded-xl p-3.5 shadow-lg">
-        <div className="flex items-center justify-between mb-2.5">
-          <span className="text-xs font-bold text-slate-200 uppercase tracking-wider">
-            🎓 5단계 커리큘럼 (Lv 1 ~ Lv 5)
-          </span>
-          <span className="text-xs font-semibold text-emerald-400">
-            진도율: {completedIds.length} / {allLessons.length} 완료 (
-            {Math.round((completedIds.length / allLessons.length) * 100)}%)
-          </span>
+        <div className="flex items-center justify-between gap-2 mb-2.5 flex-wrap">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold text-slate-200 uppercase tracking-wider">
+              🎓 5단계 커리큘럼
+            </span>
+            <span className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-300 bg-amber-950/40 px-2 py-0.5 rounded-full border border-amber-500/30">
+              <Star className="w-3 h-3 fill-amber-400 text-amber-400" />
+              {starredIds.length}/{allLessons.length}
+            </span>
+          </div>
+
+          {onOpenStageMap && (
+            <button
+              type="button"
+              onClick={onOpenStageMap}
+              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/40 text-xs font-bold transition-colors"
+            >
+              <Map className="w-3.5 h-3.5" />
+              <span>전체 코스 맵</span>
+            </button>
+          )}
         </div>
 
         <div className="space-y-2.5 max-h-[210px] overflow-y-auto pr-1">
@@ -183,6 +283,7 @@ export default function CurriculumSidebar({
                 {lv.lessons.map((lesson) => {
                   const isActive = currentLesson?.id === lesson.id;
                   const isDone = completedIds.includes(lesson.id);
+                  const isStarred = starredIds.includes(lesson.id);
                   return (
                     <button
                       key={lesson.id}
@@ -205,7 +306,12 @@ export default function CurriculumSidebar({
                         </span>
                         <span className="truncate">{lesson.title}</span>
                       </div>
-                      <ChevronRight className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                      <div className="flex items-center gap-1 shrink-0">
+                        {isStarred && (
+                          <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
+                        )}
+                        <ChevronRight className="w-3.5 h-3.5 text-slate-500" />
+                      </div>
                     </button>
                   );
                 })}
@@ -222,9 +328,14 @@ export default function CurriculumSidebar({
             {/* 강의 헤더 */}
             <div className="flex items-start justify-between gap-2 border-b border-slate-800 pb-3">
               <div>
-                <span className="inline-block text-[11px] font-mono font-bold px-2 py-0.5 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 mb-1">
-                  STEP {currentLesson.step}
-                </span>
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="inline-block text-[11px] font-mono font-bold px-2 py-0.5 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                    STEP {currentLesson.step}
+                  </span>
+                  <span className="text-[11px] font-mono text-slate-400">
+                    권장 Par: ≤{starMetrics.parLen}자 (현재 {starMetrics.effectiveLen}자)
+                  </span>
+                </div>
                 <h2 className="text-base font-bold text-white leading-snug">
                   {currentLesson.title}
                 </h2>
@@ -278,29 +389,66 @@ export default function CurriculumSidebar({
                 ))}
               </div>
 
-              {/* 미션 성공 축하 배너 */}
+              {/* 미션 성공 축하 배너 (별점 ★ 획득 여부 + Python 복사용 코드 원클릭 제공) */}
               {evaluation.passed && (
-                <div className="mt-3 p-3 rounded-xl bg-emerald-500/20 border border-emerald-400/50 flex items-center justify-between gap-2 animate-fadeIn">
-                  <div className="flex items-center gap-2">
-                    <Award className="w-5 h-5 text-emerald-300 shrink-0" />
-                    <div>
-                      <div className="text-xs font-bold text-emerald-200">
-                        🎉 미션 클리어! 완벽하게 매칭되었습니다.
-                      </div>
-                      <div className="text-[11px] text-emerald-300/90 mt-0.5">
-                        {currentLesson.solutionExplanation}
+                <div className="mt-3 p-3.5 rounded-xl bg-emerald-500/20 border border-emerald-400/50 space-y-2.5 animate-fadeIn">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-start gap-2">
+                      {starMetrics.earnedStar ? (
+                        <Star className="w-5 h-5 text-amber-400 fill-amber-400 shrink-0 mt-0.5" />
+                      ) : (
+                        <Award className="w-5 h-5 text-emerald-300 shrink-0 mt-0.5" />
+                      )}
+                      <div>
+                        <div className="text-xs font-bold text-emerald-100 flex items-center gap-1.5 flex-wrap">
+                          <span>
+                            {starMetrics.earnedStar
+                              ? '🌟 퍼펙트 클리어! 마스터 별점(★)을 획득했습니다!'
+                              : '🎉 미션 클리어! (✓ 통과)'}
+                          </span>
+                        </div>
+                        <div className="text-[11px] text-emerald-200/90 mt-0.5">
+                          {currentLesson.solutionExplanation}
+                        </div>
+                        {!starMetrics.earnedStar && (
+                          <div className="text-[11px] text-amber-300 mt-1">
+                            💡 패턴 길이를 {starMetrics.parLen}자 이하(현재 {starMetrics.effectiveLen}자)로 줄이면 마스터 별점(★)을 획득할 수 있습니다!
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
-                  {nextLesson && (
+
+                  {/* 완성된 Python 코드 즉시 복사 & 다음 단계 이동 버튼 */}
+                  <div className="flex items-center justify-between gap-2 pt-2 border-t border-emerald-500/30 flex-wrap">
                     <button
                       type="button"
-                      onClick={() => onSelectLesson(nextLesson)}
-                      className="shrink-0 px-3 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs flex items-center gap-1 shadow"
+                      onClick={handleCopySuccessPython}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-900/90 hover:bg-slate-800 text-emerald-300 border border-emerald-500/40 text-xs font-semibold transition-colors"
                     >
-                      다음 단계 <ChevronRight className="w-3.5 h-3.5" />
+                      {copiedClearCode ? (
+                        <>
+                          <Check className="w-3.5 h-3.5 text-emerald-400" />
+                          <span>Python 코드 복사됨!</span>
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-3.5 h-3.5" />
+                          <span>완성된 Python 코드 복사</span>
+                        </>
+                      )}
                     </button>
-                  )}
+
+                    {nextLesson && (
+                      <button
+                        type="button"
+                        onClick={() => onSelectLesson(nextLesson)}
+                        className="shrink-0 px-3 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs flex items-center gap-1 shadow"
+                      >
+                        다음 단계 <ChevronRight className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
                 </div>
               )}
             </div>

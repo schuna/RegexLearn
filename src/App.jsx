@@ -6,7 +6,9 @@ import {
   Bookmark,
   BookOpen,
   Terminal,
-  CheckCircle2
+  CheckCircle2,
+  Map,
+  Star
 } from 'lucide-react';
 import { CURRICULUM_LEVELS } from './data/curriculumData';
 import { WORK_PRESETS } from './data/presetsData';
@@ -17,9 +19,11 @@ import CurriculumSidebar from './components/CurriculumSidebar';
 import PresetsSidebar from './components/PresetsSidebar';
 import BookmarksSidebar from './components/BookmarksSidebar';
 import CheatsheetModal from './components/CheatsheetModal';
+import StageMapModal from './components/StageMapModal';
 
 const STORAGE_KEYS = {
   COMPLETED_LESSONS: 'pyregex_completed_lessons_v1',
+  STARRED_LESSONS: 'pyregex_starred_lessons_v2',
   BOOKMARKS: 'pyregex_bookmarks_v1'
 };
 
@@ -59,14 +63,25 @@ export default function App() {
   const [replacement, setReplacement] = useState(firstLesson.initialReplacement || '');
   const [activeWorkbenchTab, setActiveWorkbenchTab] = useState('matches');
 
-  // 치트시트 모달 상태 및 트레이서 활성 토큰 연동 상태
+  // 치트시트/월드맵 모달 상태 및 트레이서 활성 토큰 연동 상태
   const [isCheatsheetOpen, setIsCheatsheetOpen] = useState(false);
+  const [isStageMapOpen, setIsStageMapOpen] = useState(false);
   const [tracerTokenId, setTracerTokenId] = useState(null);
 
   // 학습 완료 진도 (localStorage 연동)
   const [completedIds, setCompletedIds] = useState(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEYS.COMPLETED_LESSONS);
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  // 마스터 별점(★) 획득 진도 (localStorage 연동)
+  const [starredIds, setStarredIds] = useState(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEYS.STARRED_LESSONS);
       return saved ? JSON.parse(saved) : [];
     } catch {
       return [];
@@ -90,6 +105,14 @@ export default function App() {
       // ignore storage errors
     }
   }, [completedIds]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEYS.STARRED_LESSONS, JSON.stringify(starredIds));
+    } catch {
+      // ignore storage errors
+    }
+  }, [starredIds]);
 
   useEffect(() => {
     try {
@@ -128,9 +151,13 @@ export default function App() {
     }
   }, []);
 
-  // 레슨 완료 기록 핸들러
+  // 레슨 완료 및 별점 기록 핸들러
   const handleMarkCompleted = useCallback((lessonId) => {
     setCompletedIds((prev) => (prev.includes(lessonId) ? prev : [...prev, lessonId]));
+  }, []);
+
+  const handleMarkStarred = useCallback((lessonId) => {
+    setStarredIds((prev) => (prev.includes(lessonId) ? prev : [...prev, lessonId]));
   }, []);
 
   // 실무 프리셋 선택 핸들러
@@ -275,11 +302,24 @@ export default function App() {
             </button>
           </nav>
 
-          {/* 우측 진도율 & 치트시트 버튼 */}
-          <div className="flex items-center gap-2.5">
+          {/* 우측 진도율, 코스 맵 & 치트시트 버튼 */}
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setIsStageMapOpen(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/40 text-xs font-bold transition-colors"
+            >
+              <Map className="w-4 h-4" />
+              <span>코스 맵</span>
+              <span className="inline-flex items-center gap-0.5 ml-1 px-1.5 py-0.2 rounded-full bg-amber-950/80 text-amber-300 font-mono text-[11px]">
+                <Star className="w-3 h-3 fill-amber-400 text-amber-400" />
+                {starredIds.length}/{totalLessonsCount}
+              </span>
+            </button>
+
             <div className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-950 border border-slate-800 text-xs">
               <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-              <span className="text-slate-400">학습 진도:</span>
+              <span className="text-slate-400">진도:</span>
               <span className="font-bold text-emerald-300">
                 {completedIds.length}/{totalLessonsCount}
               </span>
@@ -291,7 +331,7 @@ export default function App() {
               className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-indigo-500/15 hover:bg-indigo-500/25 text-indigo-300 border border-indigo-500/40 text-xs font-bold transition-colors"
             >
               <BookOpen className="w-4 h-4" />
-              <span>Python re 치트시트</span>
+              <span>치트시트</span>
             </button>
           </div>
         </div>
@@ -313,6 +353,12 @@ export default function App() {
                   onSelectLesson={handleSelectLesson}
                   completedIds={completedIds}
                   onMarkCompleted={handleMarkCompleted}
+                  starredIds={starredIds}
+                  onMarkStarred={handleMarkStarred}
+                  onOpenStageMap={() => setIsStageMapOpen(true)}
+                  pattern={pattern}
+                  flags={flags}
+                  replacement={replacement}
                   execResult={execResult}
                   onApplySolution={handleApplySolution}
                   onResetLesson={() => handleSelectLesson(currentLesson)}
@@ -376,6 +422,19 @@ export default function App() {
         isOpen={isCheatsheetOpen}
         onClose={() => setIsCheatsheetOpen(false)}
         onInsertToken={handleInsertCheatsheetToken}
+      />
+
+      {/* 전체 코스 스테이지 월드맵 & 별점(★) 모달 */}
+      <StageMapModal
+        isOpen={isStageMapOpen}
+        onClose={() => setIsStageMapOpen(false)}
+        currentLessonId={currentLesson?.id}
+        completedIds={completedIds}
+        starredIds={starredIds}
+        onSelectLesson={(lesson) => {
+          setActiveMode('learn');
+          handleSelectLesson(lesson);
+        }}
       />
     </div>
   );
