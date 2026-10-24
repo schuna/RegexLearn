@@ -6,7 +6,8 @@ import {
   Bookmark,
   BookOpen,
   Terminal,
-  CheckCircle2
+  CheckCircle2,
+  HelpCircle
 } from 'lucide-react';
 import { CURRICULUM_LEVELS } from './data/curriculumData';
 import { WORK_PRESETS } from './data/presetsData';
@@ -17,6 +18,7 @@ import CurriculumSidebar from './components/CurriculumSidebar';
 import PresetsSidebar from './components/PresetsSidebar';
 import BookmarksSidebar from './components/BookmarksSidebar';
 import CheatsheetModal from './components/CheatsheetModal';
+import UsageGuideModal from './components/UsageGuideModal';
 
 const STORAGE_KEYS = {
   COMPLETED_LESSONS: 'pyregex_completed_lessons_v1',
@@ -61,6 +63,7 @@ export default function App() {
 
   // 치트시트 모달 상태
   const [isCheatsheetOpen, setIsCheatsheetOpen] = useState(false);
+  const [isUsageGuideOpen, setIsUsageGuideOpen] = useState(false);
 
   // 학습 완료 진도 (localStorage 연동)
   const [completedIds, setCompletedIds] = useState(() => {
@@ -276,6 +279,15 @@ export default function App() {
 
           {/* 우측 진도율 & 치트시트 버튼 */}
           <div className="flex items-center gap-2.5">
+            <button
+              type="button"
+              onClick={() => setIsUsageGuideOpen(true)}
+              aria-haspopup="dialog"
+              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-slate-950 hover:bg-slate-800 text-slate-200 border border-slate-700 text-xs font-bold transition-colors"
+            >
+              <HelpCircle className="w-4 h-4" />
+              <span>사용 방법</span>
+            </button>
             <div className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-950 border border-slate-800 text-xs">
               <CheckCircle2 className="w-4 h-4 text-emerald-400" />
               <span className="text-slate-400">학습 진도:</span>
@@ -369,6 +381,10 @@ export default function App() {
         isOpen={isCheatsheetOpen}
         onClose={() => setIsCheatsheetOpen(false)}
         onInsertToken={handleInsertCheatsheetToken}
+      />
+      <UsageGuideModal
+        isOpen={isUsageGuideOpen}
+        onClose={() => setIsUsageGuideOpen(false)}
       />
     </div>
   );

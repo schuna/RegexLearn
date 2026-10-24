@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite --port 5188 --open",
     "build": "vite build",
+    "test": "node tests/usageGuide.test.js",
     "preview": "vite preview --port 5188"
   },
   "dependencies": {
